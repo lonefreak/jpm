@@ -1,0 +1,110 @@
+#! /bin/sh
+
+function usage () {
+  echo "USAGE: $0 [-x PROXY_HOST:PORT] ACTION PLUGIN [VERSION]";
+  echo "ACTION examples:";
+  echo "$0 package PLUGIN_NAME [PLUGIN_VERSION]	//generates a RPM containing the specified plugin";
+  echo "$0 search PLUGIN_NAME	//searches for a plugin (works with partial names)";
+  echo "$0 list PLUGIN_NAME	//lists all versions of the given plugin";
+  exit 1;
+}
+
+function get_latest () {
+  echo "Retriving $1 plugin from"
+  echo "https://updates.jenkins-ci.org/latest/$1.hpi"
+  wget https://updates.jenkins-ci.org/latest/$1.hpi -O "$DOWNLOAD_PATH/$1.hpi" --no-check-certificate && return $?
+}
+
+function get_version () {
+  echo "Retriving $1 plugin with version $2 from"
+  echo "https://updates.jenkins-ci.org/download/plugins/$1/$2/$1.hpi"
+  wget https://updates.jenkins-ci.org/download/plugins/$1/$2/$1.hpi -O "$DOWNLOAD_PATH/$1.hpi" --no-check-certificate && return $?
+}
+
+function error () {
+  echo "Jenkins plugin $1 not found!"
+  echo "Look for the name of the plugin you want at https://updates.jenkins-ci.org/download/plugins/"
+  exit 1;
+}
+
+function search() {
+  s=`curl $2 -s https://updates.jenkins-ci.org/download/plugins/ | grep -oP \<a\(.*\)\<\/a\> | grep -oP \>\(.*\)\/\< | tr ">" " " | tr "/<" " " | grep "$1"`
+  echo $s | tr " " "\n"
+  exit 0;
+}
+
+function list() {
+  l=`curl $2 -s https://updates.jenkins-ci.org/download/plugins/$1/ | grep -oP \/download\/\(.*\)\.hpi | cut -d'/' -f5`
+  echo "Versions for $1"
+  echo $l | tr " " "\n"
+  exit 0;
+}
+
+function get_latest_version() {
+  l=`curl $2 -s https://updates.jenkins-ci.org/download/plugins/$1/ | grep -oP \/download\/\(.*\)\.hpi | cut -d'/' -f5 | head -n1`
+  printf $l
+}
+
+function print_label() {
+  echo "##############################"
+  echo "$1"
+  echo "##############################"
+  echo ""
+} 
+
+action=$1
+plugin_name=$2
+plugin_version=$3
+
+while getopts ":x:h" o; do
+  case "${o}" in
+    x)
+      proxy="-x ${OPTARG}"
+      action=$3
+      plugin_name=$4
+      plugin_version=$5
+      export http_proxy=${OPTARG}
+      export https_proxy=${OPTARG}
+      ;;
+    h)
+      usage
+      ;;
+  esac
+done
+
+[ -n "$plugin_name" ] || { echo "PLUGIN_NAME is required"; usage; }
+
+[ "$action" == "search" ] && search $plugin_name "$proxy"
+ 
+[ "$action" == "list" ] && list $plugin_name "$proxy"
+
+[ "$action" == "package" ] || { echo "ACTION must be search, list or package"; usage; }
+
+DOWNLOAD_PATH="/tmp"
+
+print_label "OBTAINING PLUGIN"
+[ -n "$plugin_version" ] && { get_version $plugin_name $plugin_version; g=$?; } || { get_latest $plugin_name; g=$?; }
+
+if [ $g -ne 0 ]; then
+  error $plugin_name
+fi
+
+[ -n "$plugin_version" ] && version=$plugin_version || version=`get_latest_version $plugin_name "$proxy"`
+file="$plugin_name.hpi"
+
+print_label "GENERATING RPM"
+fpm --force -C $DOWNLOAD_PATH --package "$(pwd)" --prefix "/var/lib/jenkins/plugins" -a "noarch" -m "Jenkins plugin $plugin_name" --url "https://updates.jenkins-ci.org/download/plugins/$plugin_name" --description "Jenkins plugin $plugin_name"  -s dir -t rpm -n wm-jenkins-plugin-$plugin_name -v $version --iteration 1 --rpm-user jenkins --rpm-group jenkins $file
+g=$?
+
+if [ $g -ne 0 ]; then
+  echo "It was not possible to generate RPM for plugin $plugin_name"
+  exit 1;
+fi
+
+rpm_file="wm-jenkins-plugin-$plugin_name-$version-1.noarch.rpm"
+l=`ls wm-jenkins-plugin-$plugin_name-$version-1.noarch.rpm`
+g=$?
+
+[ $g -eq 0 ] || { echo "File $rpm_file not found!"; exit 1; }
+
+print_label "PROCESS FINISHED!!"
