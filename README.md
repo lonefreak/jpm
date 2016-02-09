@@ -11,6 +11,7 @@ JPM is a command line interface to help in the searching and packaging (RPM) of 
 ```
 $ git clone git@github.com:lonefreak/jpm.git
 $ cd jpm
+$ chmod +x install.sh
 $ ./install.sh
 ```
 
