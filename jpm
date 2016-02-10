@@ -2,7 +2,7 @@
 
 function usage () {
   echo "USAGE: $0 [-x PROXY_HOST:PORT] ACTION PLUGIN [VERSION]";
-  echo "ACTION examples:";
+  echo "ACTION:";
   echo "$0 package PLUGIN_NAME [PLUGIN_VERSION]	//generates a RPM containing the specified plugin";
   echo "$0 search PLUGIN_NAME	//searches for a plugin (works with partial names)";
   echo "$0 list PLUGIN_NAME	//lists all versions of the given plugin";
