@@ -1,6 +1,6 @@
 # jpm
 
-## Jenkins Plugin Manager
+## The Jenkins Plugin Manager
 
 
 JPM is a command line interface to help in the searching and packaging (RPM) of Jenkins plugins. It's useful if you want to manage your Jenkins plugins yourself instead of using Jenkins' Update Center.
